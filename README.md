@@ -6,11 +6,11 @@
 
 ## English
 
-I'm an IT support and cybersecurity professional based in Argentina (UTC-3), looking for my first formal remote role: IT support (N1/N2) or junior SOC analyst (L1). I'm self-taught, so everything here is work I built myself and can walk through step by step in an interview.
+I'm an IT support and cybersecurity professional based in Argentina (UTC-3), looking for my first formal remote role: IT support (N1/N2), junior SOC analyst (L1) or bilingual customer support. I'm self-taught, so everything here is work I built myself and can walk through step by step in an interview.
 
 All four projects are personal home labs, not production or client work. Each write-up says so.
 
-- **Target roles:** IT Support / Helpdesk (N1/N2) and SOC Analyst (L1)
+- **Target roles:** IT Support / Helpdesk (N1/N2), SOC Analyst (L1) and Customer Support (bilingual English/Spanish)
 - **Work mode:** remote, LATAM and international. On-site or hybrid only in Bahía Blanca
 - **Languages:** Spanish (native), English (Cambridge FCE, B2)
 - **Contact:** [LinkedIn](https://www.linkedin.com/in/martin-chancalay-902b543a8) · [Email](mailto:martinjchancalay@gmail.com) · [GitHub](https://github.com/TinchoLay)
@@ -201,7 +201,7 @@ Use it only on hashes you own or have explicit permission to test. The idea star
 
 ### Contact
 
-Open to remote roles in IT support (N1/N2) and junior SOC analyst (L1), full-time or contract.
+Open to remote roles in IT support (N1/N2), junior SOC analyst (L1) and customer support, full-time or contract.
 
 [LinkedIn](https://www.linkedin.com/in/martin-chancalay-902b543a8) · [martinjchancalay@gmail.com](mailto:martinjchancalay@gmail.com) · [GitHub](https://github.com/TinchoLay)
 
@@ -209,11 +209,11 @@ Open to remote roles in IT support (N1/N2) and junior SOC analyst (L1), full-tim
 
 ## Español
 
-Soy profesional de soporte IT y ciberseguridad, vivo en Argentina (UTC-3) y busco mi primer puesto formal remoto: soporte IT (N1/N2) o analista SOC junior (L1). Soy autodidacta, así que todo lo que hay acá lo armé yo y lo puedo explicar paso a paso en una entrevista.
+Soy profesional de soporte IT y ciberseguridad, vivo en Argentina (UTC-3) y busco mi primer puesto formal remoto: soporte IT (N1/N2), analista SOC junior (L1) o customer support bilingüe. Soy autodidacta, así que todo lo que hay acá lo armé yo y lo puedo explicar paso a paso en una entrevista.
 
 Los cuatro proyectos son laboratorios personales, no trabajo de producción ni de clientes. Cada uno lo aclara en su descripción.
 
-- **Roles objetivo:** IT Support / Helpdesk (N1/N2) y Analista SOC (L1)
+- **Roles objetivo:** IT Support / Helpdesk (N1/N2), Analista SOC (L1) y Customer Support (bilingüe inglés/español)
 - **Modalidad:** remoto, LATAM e internacional. Presencial o híbrido solo en Bahía Blanca
 - **Idiomas:** español (nativo), inglés (Cambridge FCE, B2)
 - **Contacto:** [LinkedIn](https://www.linkedin.com/in/martin-chancalay-902b543a8) · [Email](mailto:martinjchancalay@gmail.com) · [GitHub](https://github.com/TinchoLay)
@@ -398,6 +398,6 @@ Usala solo contra hashes que sean tuyos o para los que tengas permiso explícito
 
 ### Contacto
 
-Abierto a roles remotos de soporte IT (N1/N2) y analista SOC junior (L1), en relación de dependencia o como contractor.
+Abierto a roles remotos de soporte IT (N1/N2), analista SOC junior (L1) y customer support, en relación de dependencia o como contractor.
 
 [LinkedIn](https://www.linkedin.com/in/martin-chancalay-902b543a8) · [martinjchancalay@gmail.com](mailto:martinjchancalay@gmail.com) · [GitHub](https://github.com/TinchoLay)
