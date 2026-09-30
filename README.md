@@ -8,7 +8,7 @@
 
 I'm an IT support and cybersecurity professional based in Argentina (UTC-3), looking for my first formal remote role: IT support (N1/N2), junior SOC analyst (L1) or bilingual customer support. I'm self-taught, so everything here is work I built myself and can walk through step by step in an interview.
 
-All four projects are personal home labs, not production or client work. Each write-up says so.
+Everything here is personal home lab work, not production or client work. Each write-up says so.
 
 - **Target roles:** IT Support / Helpdesk (N1/N2), SOC Analyst (L1) and Customer Support (bilingual English/Spanish)
 - **Work mode:** remote, LATAM and international. On-site or hybrid only in Bahía Blanca
@@ -30,7 +30,7 @@ All four projects are personal home labs, not production or client work. Each wr
 
 [Repository](https://github.com/TinchoLay/ssh-honeypot)
 
-<!-- ![Dashboard](assets/honeypot-dashboard.png) -->
+![SSH Honeypot dashboard, Stats tab, captured at 51 events from 21 unique IPs](assets/honeypot-01-dashboard-stats.png)
 
 A honeypot is a decoy server. It looks real, accepts connections, and has nothing of value inside. I built one that fakes three services, ran it on an Azure VM exposed to the internet, and logged what real attackers did to it.
 
@@ -47,12 +47,31 @@ A honeypot is a decoy server. It looks real, accepts connections, and has nothin
 #### What I saw once it was exposed
 
 - The first attempts arrived within minutes, with no advertising.
-- Most SSH traffic came from bots cycling the same pairs: `root:123456`, `admin:admin`, `user:password`.
+- SSH was quiet in my capture (5 attempts), all with default usernames and weak passwords: `root`, `admin` and `user` with `123456`, `password`, `admin123`, `qwerty` and `admin`.
 - HTTP traffic was mostly scanners looking for `/admin`, `/login` and `/wp-admin`.
 - The busiest IPs traced back to Tor exit nodes, cloud VPS ranges and Chinese IP blocks.
 - The bots were very regular, with millisecond gaps between attempts.
 
-<!-- Add real numbers here if you have them: total attempts, unique IPs, top countries, top passwords, number of samples sent to VirusTotal. -->
+**By the numbers**, from the dashboard:
+
+| | |
+| --- | --- |
+| Events logged | 58 at the last check |
+| Unique IPs | 23 |
+| HTTP / SSH | 53 / 5 |
+| Countries seen | Netherlands, Germany, United States, China |
+| Top usernames | `root`, `admin`, `user` |
+| Top passwords | `123456`, `password`, `admin123`, `qwerty`, `admin` |
+
+It is a small sample, but it is real internet traffic, not simulated. Most of it arrived on a single day (May 13, 2026). The screenshots below were taken a little earlier, at 51 events and 21 unique IPs, so their counts are slightly lower.
+
+![Analysis tab: attacks by hour of day and by day of the week, top countries and timeline](assets/honeypot-02-dashboard-analysis.png)
+
+![Map tab: attack origins plotted on a world map](assets/honeypot-03-attack-map.png)
+
+![The honeypot starting up: SSH on 2222, HTTP on 8080, FTP on 2121 and the dashboard on 5000](assets/honeypot-04-startup-terminal.png)
+
+![HTTP requests in the live log: GET / and GET /login](assets/honeypot-05-http-requests.png)
 
 #### What I learned
 
@@ -75,7 +94,13 @@ This is the closest thing to L1 triage in my portfolio: spot the activity, enric
 
 [Repository](https://github.com/TinchoLay/Helpdesk-labs)
 
-<!-- ![Active Directory lab](assets/helpdesk-ad-lab.png) -->
+![Azure VM dc01-Martinlab: Windows Server 2022 Datacenter Azure Edition, resource group Helpdesk-lab, West US 2](assets/helpdesk-01-azure-vm.png)
+
+![Server Manager on dc01-Martinlab, domain corp.martinlab.local](assets/helpdesk-02-server-manager.png)
+
+![Active Directory Users and Computers with the OUs Administracion, Empleados, Servidores, TI and Ventas](assets/helpdesk-03-active-directory-users.png)
+
+The Azure free trial has ended, so the VM no longer exists. These captures are what remains of the running environment.
 
 An Active Directory environment on Azure, built to practice the problems an N1/N2 technician handles every day in a mid-sized company.
 
@@ -121,6 +146,8 @@ Active Directory, Group Policy, PowerShell, Event Viewer and security event anal
 ### 3. Hash Identifier
 
 [Repository](https://github.com/TinchoLay/Hash-Identifier)
+
+![An early single-file version of the tool identifying a PBKDF2 hash, with confidence and reason](assets/hashid-01-identify-output.png)
 
 A command-line tool (`hashid`) that looks at a string and lists every algorithm it could be, ranked by confidence, with the reason for each. It recognizes bcrypt, MD5, SHA-256, JWT, Cisco passwords, blockchain addresses and more.
 
@@ -173,11 +200,31 @@ Use it only on hashes you own or have explicit permission to test. The idea star
 
 ---
 
+### 5. Remote support practice (AnyDesk)
+
+A short exercise on the tooling side of N1 work: reaching a user's machine remotely. It is small, and I list it as such.
+
+![AnyDesk session on the Ubuntu machine, with top running in a terminal](assets/remote-support-01-anydesk-session.png)
+
+#### What I did
+
+- Installed AnyDesk (`.deb` package) on an Ubuntu 24.04 machine and connected to it from my Windows PC.
+- Sent a test file from Windows to `/home/ubuntu` with AnyDesk's file transfer.
+- Opened a terminal in the remote session and ran `top` to read CPU, memory and the process list.
+
+![AnyDesk file transfer: test file delivered to /home/ubuntu on the remote machine](assets/remote-support-02-anydesk-file-transfer.png)
+
+#### Skills shown
+
+Remote support tools, file transfer to a user's machine, first-look performance checks on Linux.
+
+---
+
 ### Skills at a glance
 
 | Area | Skills | Where to see it |
 | --- | --- | --- |
-| IT support | Active Directory, Group Policy, PowerShell, Event Viewer, NTFS/SMB, Windows Server 2022, ticket documentation | Helpdesk Labs |
+| IT support | Active Directory, Group Policy, PowerShell, Event Viewer, NTFS/SMB, Windows Server 2022, ticket documentation, remote support with AnyDesk | Helpdesk Labs, remote support practice |
 | Security | Log analysis, brute-force detection, threat intel enrichment, malware hash triage, password and hash analysis | SSH Honeypot, Hash tools, Helpdesk Labs (T009, T010) |
 | Development | Python, PowerShell, Flask, Docker, Git, pytest, scikit-learn | All projects |
 | Cloud | Azure VMs and network security rules (hands-on), AWS fundamentals and security engineering (coursework) | SSH Honeypot, Helpdesk Labs, AWS certificates |
@@ -211,7 +258,7 @@ Open to remote roles in IT support (N1/N2), junior SOC analyst (L1) and customer
 
 Soy profesional de soporte IT y ciberseguridad, vivo en Argentina (UTC-3) y busco mi primer puesto formal remoto: soporte IT (N1/N2), analista SOC junior (L1) o customer support bilingüe. Soy autodidacta, así que todo lo que hay acá lo armé yo y lo puedo explicar paso a paso en una entrevista.
 
-Los cuatro proyectos son laboratorios personales, no trabajo de producción ni de clientes. Cada uno lo aclara en su descripción.
+Todo lo que hay acá es trabajo personal de laboratorio, no trabajo de producción ni de clientes. Cada proyecto lo aclara en su descripción.
 
 - **Roles objetivo:** IT Support / Helpdesk (N1/N2), Analista SOC (L1) y Customer Support (bilingüe inglés/español)
 - **Modalidad:** remoto, LATAM e internacional. Presencial o híbrido solo en Bahía Blanca
@@ -233,6 +280,8 @@ Los cuatro proyectos son laboratorios personales, no trabajo de producción ni d
 
 [Repositorio](https://github.com/TinchoLay/ssh-honeypot)
 
+![Dashboard del SSH Honeypot, pestaña Stats, capturado con 51 eventos de 21 IPs únicas](assets/honeypot-01-dashboard-stats.png)
+
 Un honeypot es un servidor señuelo. Parece real, acepta conexiones y no tiene nada de valor adentro. Armé uno que simula tres servicios, lo dejé corriendo en una VM de Azure expuesta a internet y registré lo que hicieron atacantes reales.
 
 #### Qué hace
@@ -248,10 +297,31 @@ Un honeypot es un servidor señuelo. Parece real, acepta conexiones y no tiene n
 #### Qué vi una vez expuesto a internet
 
 - Los primeros intentos llegaron en minutos, sin publicitar nada.
-- La mayor parte del tráfico SSH eran bots que repetían los mismos pares: `root:123456`, `admin:admin`, `user:password`.
+- SSH estuvo tranquilo en mi captura (5 intentos), todos con usuarios por defecto y contraseñas débiles: `root`, `admin` y `user` con `123456`, `password`, `admin123`, `qwerty` y `admin`.
 - El tráfico HTTP venía sobre todo de scanners buscando `/admin`, `/login` y `/wp-admin`.
 - Las IPs más activas salían de nodos de salida de Tor, VPS de proveedores cloud y bloques de IP chinos.
 - Los bots eran muy regulares, con milisegundos entre intento e intento.
+
+**En números**, según el dashboard:
+
+| | |
+| --- | --- |
+| Eventos registrados | 58 en la última revisión |
+| IPs únicas | 23 |
+| HTTP / SSH | 53 / 5 |
+| Países vistos | Países Bajos, Alemania, Estados Unidos, China |
+| Usuarios más probados | `root`, `admin`, `user` |
+| Contraseñas más probadas | `123456`, `password`, `admin123`, `qwerty`, `admin` |
+
+Es una muestra chica, pero es tráfico real de internet, no simulado. Casi todo llegó en un solo día (13 de mayo de 2026). Las capturas de abajo son un poco anteriores, con 51 eventos y 21 IPs únicas, por eso sus números son algo menores.
+
+![Pestaña Análisis: ataques por hora del día y por día de la semana, países y línea de tiempo](assets/honeypot-02-dashboard-analysis.png)
+
+![Pestaña Mapa: origen de los ataques en un mapa mundial](assets/honeypot-03-attack-map.png)
+
+![El honeypot arrancando: SSH en 2222, HTTP en 8080, FTP en 2121 y el dashboard en 5000](assets/honeypot-04-startup-terminal.png)
+
+![Requests HTTP en el log en vivo: GET / y GET /login](assets/honeypot-05-http-requests.png)
 
 #### Qué aprendí
 
@@ -273,6 +343,14 @@ Es lo más parecido al triage de un L1 que tengo en el portafolio: detectar la a
 ### 2. Helpdesk Labs
 
 [Repositorio](https://github.com/TinchoLay/Helpdesk-labs)
+
+![VM dc01-Martinlab en Azure: Windows Server 2022 Datacenter Azure Edition, grupo de recursos Helpdesk-lab, West US 2](assets/helpdesk-01-azure-vm.png)
+
+![Administrador del servidor en dc01-Martinlab, dominio corp.martinlab.local](assets/helpdesk-02-server-manager.png)
+
+![Usuarios y equipos de Active Directory con las UO Administracion, Empleados, Servidores, TI y Ventas](assets/helpdesk-03-active-directory-users.png)
+
+La prueba gratuita de Azure terminó, así que la VM ya no existe. Estas capturas son lo que queda del entorno funcionando.
 
 Un entorno de Active Directory en Azure, armado para practicar los problemas que un técnico N1/N2 atiende todos los días en una empresa mediana.
 
@@ -318,6 +396,8 @@ Active Directory, Group Policy, PowerShell, Visor de eventos y análisis de even
 ### 3. Hash Identifier
 
 [Repositorio](https://github.com/TinchoLay/Hash-Identifier)
+
+![Una versión temprana de un solo archivo identificando un hash PBKDF2, con confianza y motivo](assets/hashid-01-identify-output.png)
 
 Una herramienta de línea de comandos (`hashid`) que mira un texto y lista todos los algoritmos que podría ser, ordenados por confianza y con el motivo de cada uno. Reconoce bcrypt, MD5, SHA-256, JWT, contraseñas de Cisco, direcciones de blockchain y más.
 
@@ -370,11 +450,31 @@ Usala solo contra hashes que sean tuyos o para los que tengas permiso explícito
 
 ---
 
+### 5. Práctica de soporte remoto (AnyDesk)
+
+Un ejercicio corto sobre la parte de herramientas del trabajo N1: llegar a la máquina de un usuario de forma remota. Es chico y lo presento como tal.
+
+![Sesión de AnyDesk en la máquina Ubuntu, con top corriendo en una terminal](assets/remote-support-01-anydesk-session.png)
+
+#### Qué hice
+
+- Instalé AnyDesk (paquete `.deb`) en una máquina Ubuntu 24.04 y me conecté desde mi PC con Windows.
+- Envié un archivo de prueba de Windows a `/home/ubuntu` con la transferencia de archivos de AnyDesk.
+- Abrí una terminal en la sesión remota y corrí `top` para leer CPU, memoria y la lista de procesos.
+
+![Transferencia de archivos de AnyDesk: archivo de prueba entregado en /home/ubuntu de la máquina remota](assets/remote-support-02-anydesk-file-transfer.png)
+
+#### Habilidades demostradas
+
+Herramientas de soporte remoto, transferencia de archivos a la máquina de un usuario, primer diagnóstico de rendimiento en Linux.
+
+---
+
 ### Habilidades de un vistazo
 
 | Área | Habilidades | Dónde verlo |
 | --- | --- | --- |
-| Soporte IT | Active Directory, Group Policy, PowerShell, Visor de eventos, NTFS/SMB, Windows Server 2022, documentación de tickets | Helpdesk Labs |
+| Soporte IT | Active Directory, Group Policy, PowerShell, Visor de eventos, NTFS/SMB, Windows Server 2022, documentación de tickets, soporte remoto con AnyDesk | Helpdesk Labs, práctica de soporte remoto |
 | Seguridad | Análisis de logs, detección de fuerza bruta, enriquecimiento con threat intel, triage de malware por hash, análisis de contraseñas y hashes | SSH Honeypot, herramientas de hash, Helpdesk Labs (T009, T010) |
 | Desarrollo | Python, PowerShell, Flask, Docker, Git, pytest, scikit-learn | Todos los proyectos |
 | Nube | VMs en Azure y reglas de seguridad de red (práctica), fundamentos y seguridad en AWS (cursos) | SSH Honeypot, Helpdesk Labs, certificados de AWS |
