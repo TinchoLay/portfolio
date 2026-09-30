@@ -179,6 +179,10 @@ The idea started from the `hash-identifier` learning module in CarterPerez-dev's
 
 [Repository](https://github.com/TinchoLay/Hash-Cracker)
 
+![Hash Cracker detecting an MD5 and a bcrypt hash through Hash Identifier and finding the password in the sample wordlist](assets/hashcracker-01-crack-md5-bcrypt.png)
+
+![pytest output: 41 tests passed](assets/hashcracker-02-tests-passing.png)
+
 A command-line tool (`hashcrack`) that takes a hash and a wordlist and looks for the word that produced it, using every CPU core. It is the companion of Hash Identifier and imports it as a real Git dependency, so it detects the algorithm by itself.
 
 #### What it does
@@ -428,6 +432,10 @@ La idea partió del módulo `hash-identifier` de Cybersecurity-Projects de Carte
 ### 4. Hash Cracker
 
 [Repositorio](https://github.com/TinchoLay/Hash-Cracker)
+
+![Hash Cracker detectando un hash MD5 y uno bcrypt con Hash Identifier y encontrando la contraseña en el wordlist de ejemplo](assets/hashcracker-01-crack-md5-bcrypt.png)
+
+![Salida de pytest: 41 tests pasaron](assets/hashcracker-02-tests-passing.png)
 
 Una herramienta de línea de comandos (`hashcrack`) que toma un hash y un diccionario y busca la palabra que lo generó, usando todos los núcleos de la CPU. Es la compañera de Hash Identifier y la importa como una dependencia real de Git, así que detecta el algoritmo sola.
 
