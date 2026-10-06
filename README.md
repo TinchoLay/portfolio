@@ -23,6 +23,7 @@ Everything here is personal home lab work, not production or client work. Each w
 | [Helpdesk Labs](https://github.com/TinchoLay/Helpdesk-labs) | Active Directory domain on Azure with 50 users and 12 documented N1/N2 tickets | Active Directory, GPO, PowerShell, Event Viewer, NTFS/SMB | IT Support N1/N2 |
 | [Hash Identifier](https://github.com/TinchoLay/Hash-Identifier) | CLI that tells you what kind of hash a string is, with a confidence ranking | Python, CLI design, pytest (38 tests) | SOC L1 |
 | [Hash Cracker](https://github.com/TinchoLay/Hash-Cracker) | CLI dictionary attack that uses every CPU core and imports Hash Identifier | multiprocessing, password security, pytest (41 tests) | SOC L1 / security |
+| [Wazuh Detection Pack](https://github.com/TinchoLay/wazuh-detection-pack) | Wazuh lab on AWS with three custom detection rules mapped to MITRE ATT&CK, each tested with a positive case, a negative case and an evasion | Wazuh, auditd, MITRE ATT&CK, detection rules, AWS, Linux | SOC L1 |
 
 ---
 
@@ -204,7 +205,60 @@ Use it only on hashes you own or have explicit permission to test. The idea star
 
 ---
 
-### 5. Remote support practice (AnyDesk)
+### 5. Wazuh Detection Pack
+
+[Repository](https://github.com/TinchoLay/wazuh-detection-pack)
+
+![Wazuh dashboard Endpoints view: one active Ubuntu 24.04 agent, endpoint-linux-01, version 4.14.8](assets/wazuh-01-agent-active.png)
+
+A home lab where I practice the detection engineering workflow on Wazuh, an open source SIEM and XDR platform. I read what an adversary does, write a rule for it, check that the rule fires, check that it stays quiet on normal activity, and write down how it can be evaded.
+
+#### Environment
+
+| Component | Detail |
+| --- | --- |
+| Cloud | AWS, us-east-1 |
+| Server | Ubuntu Server 24.04 LTS, t3.xlarge (4 vCPU, 16 GB), Wazuh 4.14.8 all-in-one |
+| Endpoint | Ubuntu Server 24.04 LTS with the Wazuh agent and auditd, named `endpoint-linux-01` |
+| Network | SSH and the dashboard only from my ISP's `/24` block. The agent talks to the server over its private IP |
+
+#### What I did
+
+- Deployed Wazuh on AWS with a budget alert set before launching anything, and enrolled a Linux endpoint.
+- Configured auditd to record every command my user runs, and told the agent to read the audit log.
+- Wrote three custom rules mapped to MITRE ATT&CK. Rule 100100 flags user discovery commands (`whoami`, `id`, `w`, `who`, T1033). Rule 100101 flags copying those binaries, the first step of renaming one (T1036.003). Rule 100102 flags any binary executed from `/tmp`, `/var/tmp` or `/dev/shm` (T1036.003).
+- Tested each rule with a positive case, a negative case and an evasion. A "does not fire" only counted after I checked Wazuh's stock rule 80792 to confirm the event had reached the server.
+- Validated every change with `wazuh-analysisd -t` before restarting the manager.
+
+![Rule 100100 in Threat Hunting: four hits for whoami, id, who and w](assets/wazuh-02-rule-100100.png)
+
+![Evasion control: a renamed copy of whoami shows up only under the stock rule 80792, with the command recorded as wm](assets/wazuh-03-evasion-control-80792.png)
+
+![Rule 100102 firing on a binary executed from /tmp/wm](assets/wazuh-04-rule-100102.png)
+
+#### What I found
+
+- My first version of rule 100100 missed `w` and `who`. The official T1033 page lists them for Linux, and I only noticed because I went back to the source.
+- Renaming a binary defeats a rule that matches the command name. For a copy of `whoami` saved as `/tmp/wm`, the alert has `audit.command` set to `wm`, but `audit.exe` still shows the full path. That is why rule 100102 matches on the path.
+- Wazuh and ATT&CK disagree on how to describe T1036.003: Wazuh calls it "Rename System Utilities" under Defense Evasion, while attack.mitre.org calls it "Rename Legitimate Utilities" under Stealth. My guess, which I have not verified, is that Wazuh ships an older ATT&CK dataset. The ID matches, so I map by ID and never by name.
+
+#### What I learned
+
+- How a detection is built from raw telemetry up: auditd, the agent, a stock base rule, then my own rule on top.
+- Why the rule uses `auid` and not `uid`: `auid` is the login user and survives `sudo`.
+- A negative result means nothing without a control that proves the event arrived.
+- Writing down what a rule misses is part of the job, not an admission of failure.
+- Keeping cloud costs under control: budget first, stop instances between sessions, use the private IP so the setup survives a restart.
+
+#### Skills shown
+
+Wazuh rule writing, auditd, MITRE ATT&CK mapping, detection testing, Linux log analysis, AWS EC2 and security groups.
+
+It is a small lab: three rules, one endpoint and only my own commands, so I have not measured a false positive rate. Rule 100102 would also flag installers and legitimate scripts. All of that is in the repo's limitations section. I used an AI assistant as a guide while building it and checked its claims against the Wazuh documentation and attack.mitre.org. The next phase is building rules from a real threat group's techniques.
+
+---
+
+### 6. Remote support practice (AnyDesk)
 
 A short exercise on the tooling side of N1 work: reaching a user's machine remotely. It is small, and I list it as such.
 
@@ -229,9 +283,9 @@ Remote support tools, file transfer to a user's machine, first-look performance 
 | Area | Skills | Where to see it |
 | --- | --- | --- |
 | IT support | Active Directory, Group Policy, PowerShell, Event Viewer, NTFS/SMB, Windows Server 2022, ticket documentation, remote support with AnyDesk | Helpdesk Labs, remote support practice |
-| Security | Log analysis, brute-force detection, threat intel enrichment, malware hash triage, password and hash analysis | SSH Honeypot, Hash tools, Helpdesk Labs (T009, T010) |
+| Security | Log analysis, detection rule writing, MITRE ATT&CK mapping, brute-force detection, threat intel enrichment, malware hash triage, password and hash analysis | SSH Honeypot, Wazuh Detection Pack, Hash tools, Helpdesk Labs (T009, T010) |
 | Development | Python, PowerShell, Flask, Docker, Git, pytest, scikit-learn | All projects |
-| Cloud | Azure VMs and network security rules (hands-on), AWS fundamentals and security engineering (coursework) | SSH Honeypot, Helpdesk Labs, AWS certificates |
+| Cloud | Azure VMs and network security rules, AWS EC2 and security groups (hands-on), AWS fundamentals and security engineering (coursework) | SSH Honeypot, Helpdesk Labs, Wazuh Detection Pack, AWS certificates |
 
 ### Certifications and training
 
@@ -277,6 +331,7 @@ Todo lo que hay acá es trabajo personal de laboratorio, no trabajo de producci�
 | [Helpdesk Labs](https://github.com/TinchoLay/Helpdesk-labs) | Dominio de Active Directory en Azure con 50 usuarios y 12 tickets N1/N2 documentados | Active Directory, GPO, PowerShell, Visor de eventos, NTFS/SMB | IT Support N1/N2 |
 | [Hash Identifier](https://github.com/TinchoLay/Hash-Identifier) | CLI que dice qué tipo de hash es un texto, con ranking de confianza | Python, diseño de CLI, pytest (38 tests) | SOC L1 |
 | [Hash Cracker](https://github.com/TinchoLay/Hash-Cracker) | CLI de ataque por diccionario que usa todos los núcleos y depende de Hash Identifier | multiprocessing, seguridad de contraseñas, pytest (41 tests) | SOC L1 / seguridad |
+| [Wazuh Detection Pack](https://github.com/TinchoLay/wazuh-detection-pack) | Laboratorio de Wazuh en AWS con tres reglas de detección propias mapeadas a MITRE ATT&CK, cada una probada con un caso positivo, uno negativo y una evasión | Wazuh, auditd, MITRE ATT&CK, reglas de detección, AWS, Linux | SOC L1 |
 
 ---
 
@@ -458,7 +513,60 @@ Usala solo contra hashes que sean tuyos o para los que tengas permiso explícito
 
 ---
 
-### 5. Práctica de soporte remoto (AnyDesk)
+### 5. Wazuh Detection Pack
+
+[Repositorio](https://github.com/TinchoLay/wazuh-detection-pack)
+
+![Vista Endpoints del dashboard de Wazuh: un agente Ubuntu 24.04 activo, endpoint-linux-01, versión 4.14.8](assets/wazuh-01-agent-active.png)
+
+Un laboratorio donde practico el flujo de trabajo de ingeniería de detección en Wazuh, una plataforma SIEM y XDR de código abierto. Leo qué hace un adversario, escribo una regla para eso, compruebo que dispara, compruebo que se calla con actividad normal y dejo escrito cómo se puede evadir.
+
+#### Entorno
+
+| Componente | Detalle |
+| --- | --- |
+| Nube | AWS, us-east-1 |
+| Servidor | Ubuntu Server 24.04 LTS, t3.xlarge (4 vCPU, 16 GB), Wazuh 4.14.8 all-in-one |
+| Endpoint | Ubuntu Server 24.04 LTS con el agente de Wazuh y auditd, llamado `endpoint-linux-01` |
+| Red | SSH y el dashboard solo desde el bloque `/24` de mi proveedor. El agente habla con el servidor por su IP privada |
+
+#### Qué hice
+
+- Desplegué Wazuh en AWS con una alerta de presupuesto creada antes de lanzar nada, y enrolé un endpoint Linux.
+- Configuré auditd para registrar cada comando que corre mi usuario y le indiqué al agente que lea el log de auditoría.
+- Escribí tres reglas propias mapeadas a MITRE ATT&CK. La 100100 marca comandos de descubrimiento de usuario (`whoami`, `id`, `w`, `who`, T1033). La 100101 marca la copia de esos binarios, el primer paso para renombrar uno (T1036.003). La 100102 marca cualquier binario ejecutado desde `/tmp`, `/var/tmp` o `/dev/shm` (T1036.003).
+- Probé cada regla con un caso positivo, uno negativo y una evasión. Un "no dispara" solo valía después de revisar la regla de fábrica 80792 para confirmar que el evento había llegado al servidor.
+- Validé cada cambio con `wazuh-analysisd -t` antes de reiniciar el manager.
+
+![Regla 100100 en Threat Hunting: cuatro hits para whoami, id, who y w](assets/wazuh-02-rule-100100.png)
+
+![Control de la evasión: una copia renombrada de whoami aparece solo en la regla de fábrica 80792, con el comando registrado como wm](assets/wazuh-03-evasion-control-80792.png)
+
+![La regla 100102 disparando sobre un binario ejecutado desde /tmp/wm](assets/wazuh-04-rule-100102.png)
+
+#### Qué encontré
+
+- Mi primera versión de la regla 100100 no cubría `w` ni `who`. La página oficial de T1033 los lista para Linux, y solo me di cuenta porque volví a la fuente.
+- Renombrar un binario rompe una regla que filtra por nombre de comando. En una copia de `whoami` guardada como `/tmp/wm`, la alerta tiene `audit.command` en `wm`, pero `audit.exe` sigue mostrando la ruta completa. Por eso la regla 100102 filtra por ruta.
+- Wazuh y ATT&CK no describen igual a T1036.003: Wazuh lo llama "Rename System Utilities" dentro de Defense Evasion, y attack.mitre.org lo llama "Rename Legitimate Utilities" dentro de Stealth. Mi hipótesis, que no verifiqué, es que Wazuh trae un dataset de ATT&CK más viejo. El ID coincide, así que mapeo por ID y nunca por nombre.
+
+#### Qué aprendí
+
+- Cómo se arma una detección desde la telemetría cruda: auditd, el agente, una regla base de fábrica y encima mi propia regla.
+- Por qué la regla usa `auid` y no `uid`: `auid` es el usuario de la sesión y se mantiene con `sudo`.
+- Un resultado negativo no significa nada sin un control que pruebe que el evento llegó.
+- Dejar escrito lo que una regla no ve es parte del trabajo, no una confesión de fracaso.
+- Controlar costos en la nube: presupuesto primero, detener las instancias entre sesiones y usar la IP privada para que la configuración sobreviva a un reinicio.
+
+#### Habilidades demostradas
+
+Escritura de reglas en Wazuh, auditd, mapeo a MITRE ATT&CK, pruebas de detección, análisis de logs en Linux, AWS EC2 y security groups.
+
+Es un laboratorio chico: tres reglas, un endpoint y solo mis propios comandos, así que no medí la tasa de falsos positivos. La regla 100102 también marcaría instaladores y scripts legítimos. Todo eso está en la sección de límites del repo. Usé un asistente de IA como guía y contrasté sus afirmaciones con la documentación de Wazuh y attack.mitre.org. La próxima fase es armar reglas a partir de las técnicas de un grupo de amenaza real.
+
+---
+
+### 6. Práctica de soporte remoto (AnyDesk)
 
 Un ejercicio corto sobre la parte de herramientas del trabajo N1: llegar a la máquina de un usuario de forma remota. Es chico y lo presento como tal.
 
@@ -483,9 +591,9 @@ Herramientas de soporte remoto, transferencia de archivos a la máquina de un us
 | Área | Habilidades | Dónde verlo |
 | --- | --- | --- |
 | Soporte IT | Active Directory, Group Policy, PowerShell, Visor de eventos, NTFS/SMB, Windows Server 2022, documentación de tickets, soporte remoto con AnyDesk | Helpdesk Labs, práctica de soporte remoto |
-| Seguridad | Análisis de logs, detección de fuerza bruta, enriquecimiento con threat intel, triage de malware por hash, análisis de contraseñas y hashes | SSH Honeypot, herramientas de hash, Helpdesk Labs (T009, T010) |
+| Seguridad | Análisis de logs, escritura de reglas de detección, mapeo a MITRE ATT&CK, detección de fuerza bruta, enriquecimiento con threat intel, triage de malware por hash, análisis de contraseñas y hashes | SSH Honeypot, Wazuh Detection Pack, herramientas de hash, Helpdesk Labs (T009, T010) |
 | Desarrollo | Python, PowerShell, Flask, Docker, Git, pytest, scikit-learn | Todos los proyectos |
-| Nube | VMs en Azure y reglas de seguridad de red (práctica), fundamentos y seguridad en AWS (cursos) | SSH Honeypot, Helpdesk Labs, certificados de AWS |
+| Nube | VMs en Azure y reglas de seguridad de red, AWS EC2 y security groups (práctica), fundamentos y seguridad en AWS (cursos) | SSH Honeypot, Helpdesk Labs, Wazuh Detection Pack, certificados de AWS |
 
 ### Certificaciones y formación
 
