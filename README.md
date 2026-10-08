@@ -23,7 +23,7 @@ Everything here is personal home lab work, not production or client work. Each w
 | [Helpdesk Labs](https://github.com/TinchoLay/Helpdesk-labs) | Active Directory domain on Azure with 50 users and 12 documented N1/N2 tickets | Active Directory, GPO, PowerShell, Event Viewer, NTFS/SMB | IT Support N1/N2 |
 | [Hash Identifier](https://github.com/TinchoLay/Hash-Identifier) | CLI that tells you what kind of hash a string is, with a confidence ranking | Python, CLI design, pytest (38 tests) | SOC L1 |
 | [Hash Cracker](https://github.com/TinchoLay/Hash-Cracker) | CLI dictionary attack that uses every CPU core and imports Hash Identifier | multiprocessing, password security, pytest (41 tests) | SOC L1 / security |
-| [Wazuh Detection Pack](https://github.com/TinchoLay/wazuh-detection-pack) | Wazuh lab on AWS with three custom detection rules mapped to MITRE ATT&CK, each tested with a positive case, a negative case and an evasion | Wazuh, auditd, MITRE ATT&CK, detection rules, AWS, Linux | SOC L1 |
+| [Wazuh Detection Pack](https://github.com/TinchoLay/wazuh-detection-pack) | Wazuh lab on AWS with 32 custom detection rules, 28 of them built from the techniques of the TeamTNT threat group and mapped to MITRE ATT&CK. Each rule has a positive test, a negative test and a documented evasion. Three also exist as Sigma rules | Wazuh, auditd, MITRE ATT&CK, Sigma, detection rules, AWS, Linux | SOC L1 |
 
 ---
 
@@ -211,7 +211,7 @@ Use it only on hashes you own or have explicit permission to test. The idea star
 
 ![Wazuh dashboard Endpoints view: one active Ubuntu 24.04 agent, endpoint-linux-01, version 4.14.8](assets/wazuh-01-agent-active.png)
 
-A home lab where I practice the detection engineering workflow on Wazuh, an open source SIEM and XDR platform. I read what an adversary does, write a rule for it, check that the rule fires, check that it stays quiet on normal activity, and write down how it can be evaded.
+A home lab where I practice the detection engineering workflow on Wazuh, an open source SIEM and XDR platform. I read what an adversary does, write a rule for it, check that the rule fires, check that it stays quiet on normal activity, and write down how it can be evaded. It has two phases: the first built the infrastructure and four rules, and the second wrote 28 more from the techniques of a real threat group, TeamTNT.
 
 #### Environment
 
@@ -224,11 +224,21 @@ A home lab where I practice the detection engineering workflow on Wazuh, an open
 
 #### What I did
 
+Phase 1, infrastructure and first rules:
+
 - Deployed Wazuh on AWS with a budget alert set before launching anything, and enrolled a Linux endpoint.
 - Configured auditd to record every command my user runs, and told the agent to read the audit log.
-- Wrote three custom rules mapped to MITRE ATT&CK. Rule 100100 flags user discovery commands (`whoami`, `id`, `w`, `who`, T1033). Rule 100101 flags copying those binaries, the first step of renaming one (T1036.003). Rule 100102 flags any binary executed from `/tmp`, `/var/tmp` or `/dev/shm` (T1036.003).
+- Wrote four custom rules mapped to MITRE ATT&CK. Rule 100100 flags user discovery commands (`whoami`, `id`, `w`, `who`, T1033). Rule 100101 flags copying those binaries, the first step of renaming one (T1036.003). Rule 100102 flags any binary executed from `/tmp`, `/var/tmp` or `/dev/shm` (T1036.003). Rule 100103 lowers the noise from SSH login scripts to level 3 instead of silencing it.
 - Tested each rule with a positive case, a negative case and an evasion. A "does not fire" only counted after I checked Wazuh's stock rule 80792 to confirm the event had reached the server.
-- Validated every change with `wazuh-analysisd -t` before restarting the manager.
+
+Phase 2, TeamTNT (ATT&CK G0139):
+
+- Chose TeamTNT because it goes after Linux and cloud workloads, which is what auditd on a Linux box can actually see. The technique list comes from the ATT&CK group page and Unit 42's analysis of the Hildegard campaign. The repo also lists the behaviors my lab cannot see.
+- Wrote 28 rules for 10 techniques: tools downloaded with `curl` and `wget` (T1105), cloud credentials read from the instance metadata service (T1552.005), scanners and `tmate` (T1046, T1219), firewall changes, `chattr` and new local accounts, changes to `authorized_keys`, systemd services, `/etc/ld.so.preload`, log deletion and shell history deletion.
+- For each technique I wrote down what I expected before testing, then ran a positive test, a negative test with a control and at least one evasion, and wrote a v2 for the evasions I could close. When a prediction was wrong, I kept it in the write-up.
+- Built an ATT&CK Navigator layer with a script that reads the `<mitre>` tags from the rules file, so the map cannot drift from the rules. It marks 17 techniques.
+- Rewrote three detections as vendor-neutral Sigma rules, after searching SigmaHQ to see what already existed. `sigma check` reports no errors and I converted them to Splunk and Elasticsearch queries. I did not run those queries on a live Splunk or Elastic.
+- Validated every change with `wazuh-analysisd -t` before restarting the manager, and used `wazuh-logtest` to see how Wazuh decodes an event whenever a rule misbehaved.
 
 ![Rule 100100 in Threat Hunting: four hits for whoami, id, who and w](assets/wazuh-02-rule-100100.png)
 
@@ -236,11 +246,26 @@ A home lab where I practice the detection engineering workflow on Wazuh, an open
 
 ![Rule 100102 firing on a binary executed from /tmp/wm](assets/wazuh-04-rule-100102.png)
 
+![Rules 100130, 100131 and 100132 firing on Python processes, which the stock ruleset hides](assets/wazuh-05-python-gap.png)
+
+![ATT&CK Navigator layer with the 17 techniques that have a custom rule](assets/wazuh-06-attack-navigator.svg)
+
 #### What I found
+
+From phase 1:
 
 - My first version of rule 100100 missed `w` and `who`. The official T1033 page lists them for Linux, and I only noticed because I went back to the source.
 - Renaming a binary defeats a rule that matches the command name. For a copy of `whoami` saved as `/tmp/wm`, the alert has `audit.command` set to `wm`, but `audit.exe` still shows the full path. That is why rule 100102 matches on the path.
 - Wazuh and ATT&CK disagree on how to describe T1036.003: Wazuh calls it "Rename System Utilities" under Defense Evasion, while attack.mitre.org calls it "Rename Legitimate Utilities" under Stealth. My guess, which I have not verified, is that Wazuh ships an older ATT&CK dataset. The ID matches, so I map by ID and never by name.
+
+From phase 2:
+
+- Wazuh's own ruleset has a rule at level 0 (92600) that hides every Python execution. I found it because the event was in the audit log and never reached the dashboard. Rule 100130 brings those events back. That matters because credential theft from the metadata service can be done in Python, and `ufw` is itself a Python script.
+- When two sibling rules matched the same event, the one with the higher level won. I had assumed the first one in the file would. That is two observations: I did not read the engine's code and I did not test ties.
+- An audit watch on a path is really a watch on an inode. If `~/.ssh` is moved away and a new one is created, the watch keeps pointing at the old one and writes to the new `authorized_keys` go unlogged. I could not repair that with a rule, so I wrote rules for its two fingerprints: the move and the vanished watch.
+- `systemctl enable` was invisible to my file watch because systemd (PID 1) creates the symlink, not the command. Adding `audit=1` to the kernel command line and rebooting fixed it. The explanation is my reading of the evidence, and I did not check the kernel documentation.
+- A dashboard filter hid an alert, and I called it a detection gap before checking by rule ID. `wazuh-logtest` fixed the diagnosis. Since then I filter by `rule.id`.
+- ATT&CK v19 revoked three technique IDs that my rules use. The Navigator layer uses the new ones. The rules still carry the old ones, because I have not tested whether Wazuh accepts the new IDs.
 
 #### What I learned
 
@@ -248,13 +273,16 @@ A home lab where I practice the detection engineering workflow on Wazuh, an open
 - Why the rule uses `auid` and not `uid`: `auid` is the login user and survives `sudo`.
 - A negative result means nothing without a control that proves the event arrived.
 - Writing down what a rule misses is part of the job, not an admission of failure.
+- Detection content needs maintenance. The telemetry, the platform's own ruleset and the ATT&CK taxonomy all change underneath the rules.
+- Moving a rule to Sigma forces you to separate the idea of the detection from the Wazuh plumbing around it.
+- A lost event is a detection that cannot exist. `auditctl -s` showed 61 lost events at boot until I raised the audit backlog, so now I check that counter.
 - Keeping cloud costs under control: budget first, stop instances between sessions, use the private IP so the setup survives a restart.
 
 #### Skills shown
 
-Wazuh rule writing, auditd, MITRE ATT&CK mapping, detection testing, Linux log analysis, AWS EC2 and security groups.
+Wazuh rule writing and testing (`wazuh-logtest`), auditd, MITRE ATT&CK mapping and Navigator layers, Sigma, threat group research, Linux log analysis, AWS EC2 and security groups.
 
-It is a small lab: three rules, one endpoint and only my own commands, so I have not measured a false positive rate. Rule 100102 would also flag installers and legitimate scripts. All of that is in the repo's limitations section. I used an AI assistant as a guide while building it and checked its claims against the Wazuh documentation and attack.mitre.org. The next phase is building rules from a real threat group's techniques.
+It is still a small lab: 32 rules, one endpoint and only my own commands, so I have not measured a false positive rate. A colored cell in the ATT&CK map means I wrote and tested a rule for that technique, not that the technique is covered, and every rule has evasions written down in the repo's limits sections. The README also lists hypotheses I have not tested yet. Next is a rule for the old Wazuh API vulnerability (CVE-2025-24016), after I read the original report. I used an AI assistant as a guide while building it and checked its claims against the Wazuh documentation, attack.mitre.org and my own tests.
 
 ---
 
@@ -283,7 +311,7 @@ Remote support tools, file transfer to a user's machine, first-look performance 
 | Area | Skills | Where to see it |
 | --- | --- | --- |
 | IT support | Active Directory, Group Policy, PowerShell, Event Viewer, NTFS/SMB, Windows Server 2022, ticket documentation, remote support with AnyDesk | Helpdesk Labs, remote support practice |
-| Security | Log analysis, detection rule writing, MITRE ATT&CK mapping, brute-force detection, threat intel enrichment, malware hash triage, password and hash analysis | SSH Honeypot, Wazuh Detection Pack, Hash tools, Helpdesk Labs (T009, T010) |
+| Security | Log analysis, detection rule writing and testing, MITRE ATT&CK mapping, Sigma rules, brute-force detection, threat intel enrichment, malware hash triage, password and hash analysis | SSH Honeypot, Wazuh Detection Pack, Hash tools, Helpdesk Labs (T009, T010) |
 | Development | Python, PowerShell, Flask, Docker, Git, pytest, scikit-learn | All projects |
 | Cloud | Azure VMs and network security rules, AWS EC2 and security groups (hands-on), AWS fundamentals and security engineering (coursework) | SSH Honeypot, Helpdesk Labs, Wazuh Detection Pack, AWS certificates |
 
@@ -331,7 +359,7 @@ Todo lo que hay acá es trabajo personal de laboratorio, no trabajo de producci�
 | [Helpdesk Labs](https://github.com/TinchoLay/Helpdesk-labs) | Dominio de Active Directory en Azure con 50 usuarios y 12 tickets N1/N2 documentados | Active Directory, GPO, PowerShell, Visor de eventos, NTFS/SMB | IT Support N1/N2 |
 | [Hash Identifier](https://github.com/TinchoLay/Hash-Identifier) | CLI que dice qué tipo de hash es un texto, con ranking de confianza | Python, diseño de CLI, pytest (38 tests) | SOC L1 |
 | [Hash Cracker](https://github.com/TinchoLay/Hash-Cracker) | CLI de ataque por diccionario que usa todos los núcleos y depende de Hash Identifier | multiprocessing, seguridad de contraseñas, pytest (41 tests) | SOC L1 / seguridad |
-| [Wazuh Detection Pack](https://github.com/TinchoLay/wazuh-detection-pack) | Laboratorio de Wazuh en AWS con tres reglas de detección propias mapeadas a MITRE ATT&CK, cada una probada con un caso positivo, uno negativo y una evasión | Wazuh, auditd, MITRE ATT&CK, reglas de detección, AWS, Linux | SOC L1 |
+| [Wazuh Detection Pack](https://github.com/TinchoLay/wazuh-detection-pack) | Laboratorio de Wazuh en AWS con 32 reglas de detección propias, 28 de ellas armadas a partir de las técnicas del grupo de amenaza TeamTNT y mapeadas a MITRE ATT&CK. Cada regla tiene una prueba positiva, una negativa y una evasión documentada. Tres existen también como reglas Sigma | Wazuh, auditd, MITRE ATT&CK, Sigma, reglas de detección, AWS, Linux | SOC L1 |
 
 ---
 
@@ -519,7 +547,7 @@ Usala solo contra hashes que sean tuyos o para los que tengas permiso explícito
 
 ![Vista Endpoints del dashboard de Wazuh: un agente Ubuntu 24.04 activo, endpoint-linux-01, versión 4.14.8](assets/wazuh-01-agent-active.png)
 
-Un laboratorio donde practico el flujo de trabajo de ingeniería de detección en Wazuh, una plataforma SIEM y XDR de código abierto. Leo qué hace un adversario, escribo una regla para eso, compruebo que dispara, compruebo que se calla con actividad normal y dejo escrito cómo se puede evadir.
+Un laboratorio donde practico el flujo de trabajo de ingeniería de detección en Wazuh, una plataforma SIEM y XDR de código abierto. Leo qué hace un adversario, escribo una regla para eso, compruebo que dispara, compruebo que se calla con actividad normal y dejo escrito cómo se puede evadir. Tiene dos fases: la primera armó la infraestructura y cuatro reglas, y la segunda sumó 28 más a partir de las técnicas de un grupo de amenaza real, TeamTNT.
 
 #### Entorno
 
@@ -532,11 +560,21 @@ Un laboratorio donde practico el flujo de trabajo de ingeniería de detección e
 
 #### Qué hice
 
+Fase 1, infraestructura y primeras reglas:
+
 - Desplegué Wazuh en AWS con una alerta de presupuesto creada antes de lanzar nada, y enrolé un endpoint Linux.
 - Configuré auditd para registrar cada comando que corre mi usuario y le indiqué al agente que lea el log de auditoría.
-- Escribí tres reglas propias mapeadas a MITRE ATT&CK. La 100100 marca comandos de descubrimiento de usuario (`whoami`, `id`, `w`, `who`, T1033). La 100101 marca la copia de esos binarios, el primer paso para renombrar uno (T1036.003). La 100102 marca cualquier binario ejecutado desde `/tmp`, `/var/tmp` o `/dev/shm` (T1036.003).
+- Escribí cuatro reglas propias mapeadas a MITRE ATT&CK. La 100100 marca comandos de descubrimiento de usuario (`whoami`, `id`, `w`, `who`, T1033). La 100101 marca la copia de esos binarios, el primer paso para renombrar uno (T1036.003). La 100102 marca cualquier binario ejecutado desde `/tmp`, `/var/tmp` o `/dev/shm` (T1036.003). La 100103 baja a nivel 3 el ruido de los scripts de login por SSH, en vez de silenciarlo.
 - Probé cada regla con un caso positivo, uno negativo y una evasión. Un "no dispara" solo valía después de revisar la regla de fábrica 80792 para confirmar que el evento había llegado al servidor.
-- Validé cada cambio con `wazuh-analysisd -t` antes de reiniciar el manager.
+
+Fase 2, TeamTNT (ATT&CK G0139):
+
+- Elegí TeamTNT porque ataca cargas de trabajo Linux y en la nube, que es lo que auditd en una máquina Linux puede ver. La lista de técnicas sale de la página del grupo en ATT&CK y del análisis de Unit 42 sobre la campaña Hildegard. El repo también lista los comportamientos que mi laboratorio no puede ver.
+- Escribí 28 reglas para 10 técnicas: herramientas descargadas con `curl` y `wget` (T1105), credenciales de la nube leídas desde el servicio de metadatos de la instancia (T1552.005), escáneres y `tmate` (T1046, T1219), cambios en el firewall, `chattr` y cuentas locales nuevas, cambios en `authorized_keys`, servicios de systemd, `/etc/ld.so.preload`, borrado de logs y borrado del historial de la shell.
+- Para cada técnica anoté lo que esperaba antes de probar, y después hice una prueba positiva, una negativa con control y al menos una evasión, y escribí una v2 para las evasiones que pude cerrar. Cuando una predicción salió mal, la dejé en el documento.
+- Armé una capa de ATT&CK Navigator con un script que lee las etiquetas `<mitre>` del archivo de reglas, así el mapa no se desfasa de las reglas. Marca 17 técnicas.
+- Reescribí tres detecciones como reglas Sigma, independientes del proveedor, después de buscar en SigmaHQ qué existía ya. `sigma check` no reporta errores y las convertí a consultas de Splunk y Elasticsearch. No ejecuté esas consultas en un Splunk o Elastic real.
+- Validé cada cambio con `wazuh-analysisd -t` antes de reiniciar el manager, y usé `wazuh-logtest` para ver cómo decodifica Wazuh un evento cada vez que una regla se comportaba mal.
 
 ![Regla 100100 en Threat Hunting: cuatro hits para whoami, id, who y w](assets/wazuh-02-rule-100100.png)
 
@@ -544,11 +582,26 @@ Un laboratorio donde practico el flujo de trabajo de ingeniería de detección e
 
 ![La regla 100102 disparando sobre un binario ejecutado desde /tmp/wm](assets/wazuh-04-rule-100102.png)
 
+![Reglas 100130, 100131 y 100132 disparando sobre procesos de Python, que el conjunto de reglas de fábrica oculta](assets/wazuh-05-python-gap.png)
+
+![Capa de ATT&CK Navigator con las 17 técnicas que tienen una regla propia](assets/wazuh-06-attack-navigator.svg)
+
 #### Qué encontré
+
+De la fase 1:
 
 - Mi primera versión de la regla 100100 no cubría `w` ni `who`. La página oficial de T1033 los lista para Linux, y solo me di cuenta porque volví a la fuente.
 - Renombrar un binario rompe una regla que filtra por nombre de comando. En una copia de `whoami` guardada como `/tmp/wm`, la alerta tiene `audit.command` en `wm`, pero `audit.exe` sigue mostrando la ruta completa. Por eso la regla 100102 filtra por ruta.
 - Wazuh y ATT&CK no describen igual a T1036.003: Wazuh lo llama "Rename System Utilities" dentro de Defense Evasion, y attack.mitre.org lo llama "Rename Legitimate Utilities" dentro de Stealth. Mi hipótesis, que no verifiqué, es que Wazuh trae un dataset de ATT&CK más viejo. El ID coincide, así que mapeo por ID y nunca por nombre.
+
+De la fase 2:
+
+- El conjunto de reglas de Wazuh trae una regla en nivel 0 (92600) que oculta toda ejecución de Python. La encontré porque el evento estaba en el log de auditoría y nunca llegaba al dashboard. La regla 100130 los recupera. Importa porque el robo de credenciales desde el servicio de metadatos se puede hacer en Python, y `ufw` es en sí un script de Python.
+- Cuando dos reglas hermanas coincidían con el mismo evento, ganaba la de nivel más alto. Yo había supuesto que ganaba la primera del archivo. Son dos observaciones: no leí el código del motor y no probé empates.
+- Un watch de auditoría sobre una ruta es en realidad un watch sobre un inodo. Si se mueve `~/.ssh` y se crea uno nuevo, el watch sigue apuntando al viejo y las escrituras en el nuevo `authorized_keys` no se registran. No pude repararlo con una regla, así que escribí reglas para sus dos huellas: el movimiento y el watch que desaparece.
+- `systemctl enable` era invisible para mi watch de archivos porque systemd (PID 1) crea el symlink, no el comando. Agregar `audit=1` a la línea de comandos del kernel y reiniciar lo resolvió. La explicación es mi lectura de la evidencia, y no revisé la documentación del kernel.
+- Un filtro del dashboard ocultó una alerta, y la llamé un hueco de detección antes de buscar por ID de regla. `wazuh-logtest` corrigió el diagnóstico. Desde entonces filtro por `rule.id`.
+- ATT&CK v19 dio de baja tres IDs de técnica que usan mis reglas. La capa de Navigator usa los nuevos. Las reglas siguen con los viejos, porque no probé si Wazuh acepta los IDs nuevos.
 
 #### Qué aprendí
 
@@ -556,13 +609,16 @@ Un laboratorio donde practico el flujo de trabajo de ingeniería de detección e
 - Por qué la regla usa `auid` y no `uid`: `auid` es el usuario de la sesión y se mantiene con `sudo`.
 - Un resultado negativo no significa nada sin un control que pruebe que el evento llegó.
 - Dejar escrito lo que una regla no ve es parte del trabajo, no una confesión de fracaso.
+- El contenido de detección necesita mantenimiento. La telemetría, el conjunto de reglas de la plataforma y la taxonomía de ATT&CK cambian por debajo de las reglas.
+- Pasar una regla a Sigma obliga a separar la idea de la detección de la plomería de Wazuh que la rodea.
+- Un evento perdido es una detección que no puede existir. `auditctl -s` mostró 61 eventos perdidos en el arranque hasta que subí el backlog de auditoría, y ahora reviso ese contador.
 - Controlar costos en la nube: presupuesto primero, detener las instancias entre sesiones y usar la IP privada para que la configuración sobreviva a un reinicio.
 
 #### Habilidades demostradas
 
-Escritura de reglas en Wazuh, auditd, mapeo a MITRE ATT&CK, pruebas de detección, análisis de logs en Linux, AWS EC2 y security groups.
+Escritura y pruebas de reglas en Wazuh (`wazuh-logtest`), auditd, mapeo a MITRE ATT&CK y capas de Navigator, Sigma, investigación de grupos de amenaza, análisis de logs en Linux, AWS EC2 y security groups.
 
-Es un laboratorio chico: tres reglas, un endpoint y solo mis propios comandos, así que no medí la tasa de falsos positivos. La regla 100102 también marcaría instaladores y scripts legítimos. Todo eso está en la sección de límites del repo. Usé un asistente de IA como guía y contrasté sus afirmaciones con la documentación de Wazuh y attack.mitre.org. La próxima fase es armar reglas a partir de las técnicas de un grupo de amenaza real.
+Sigue siendo un laboratorio chico: 32 reglas, un endpoint y solo mis propios comandos, así que no medí la tasa de falsos positivos. Una celda coloreada en el mapa de ATT&CK significa que escribí y probé una regla para esa técnica, no que la técnica esté cubierta, y cada regla tiene evasiones documentadas en las secciones de límites del repo. El README también lista hipótesis que todavía no probé. Lo siguiente es una regla para la vieja vulnerabilidad de la API de Wazuh (CVE-2025-24016), después de leer el reporte original. Usé un asistente de IA como guía y contrasté sus afirmaciones con la documentación de Wazuh, attack.mitre.org y mis propias pruebas.
 
 ---
 
@@ -591,7 +647,7 @@ Herramientas de soporte remoto, transferencia de archivos a la máquina de un us
 | Área | Habilidades | Dónde verlo |
 | --- | --- | --- |
 | Soporte IT | Active Directory, Group Policy, PowerShell, Visor de eventos, NTFS/SMB, Windows Server 2022, documentación de tickets, soporte remoto con AnyDesk | Helpdesk Labs, práctica de soporte remoto |
-| Seguridad | Análisis de logs, escritura de reglas de detección, mapeo a MITRE ATT&CK, detección de fuerza bruta, enriquecimiento con threat intel, triage de malware por hash, análisis de contraseñas y hashes | SSH Honeypot, Wazuh Detection Pack, herramientas de hash, Helpdesk Labs (T009, T010) |
+| Seguridad | Análisis de logs, escritura y pruebas de reglas de detección, mapeo a MITRE ATT&CK, reglas Sigma, detección de fuerza bruta, enriquecimiento con threat intel, triage de malware por hash, análisis de contraseñas y hashes | SSH Honeypot, Wazuh Detection Pack, herramientas de hash, Helpdesk Labs (T009, T010) |
 | Desarrollo | Python, PowerShell, Flask, Docker, Git, pytest, scikit-learn | Todos los proyectos |
 | Nube | VMs en Azure y reglas de seguridad de red, AWS EC2 y security groups (práctica), fundamentos y seguridad en AWS (cursos) | SSH Honeypot, Helpdesk Labs, Wazuh Detection Pack, certificados de AWS |
 
