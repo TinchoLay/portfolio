@@ -19,11 +19,11 @@ Everything here is personal home lab work, not production or client work. Each w
 
 | Project | What it is | Main skills | Closest role |
 | --- | --- | --- | --- |
-| [SSH Honeypot](https://github.com/TinchoLay/ssh-honeypot) | Decoy SSH, HTTP and FTP server on an Azure VM that logged real attackers | Python, log analysis, threat intel, Flask, Docker, Azure | SOC L1 |
+| [SSH Honeypot](https://github.com/TinchoLay/ssh-honeypot) | Decoy SSH, HTTP and FTP server that logged real attackers, first on Azure and now on AWS, with Wazuh rules on top of its logs | Python, log analysis, threat intel, Wazuh, Flask, Docker, AWS | SOC L1 |
 | [Helpdesk Labs](https://github.com/TinchoLay/Helpdesk-labs) | Active Directory domain on Azure with 50 users and 12 documented N1/N2 tickets | Active Directory, GPO, PowerShell, Event Viewer, NTFS/SMB | IT Support N1/N2 |
 | [Hash Identifier](https://github.com/TinchoLay/Hash-Identifier) | CLI that tells you what kind of hash a string is, with a confidence ranking | Python, CLI design, pytest (38 tests) | SOC L1 |
 | [Hash Cracker](https://github.com/TinchoLay/Hash-Cracker) | CLI dictionary attack that uses every CPU core and imports Hash Identifier | multiprocessing, password security, pytest (41 tests) | SOC L1 / security |
-| [Wazuh Detection Pack](https://github.com/TinchoLay/wazuh-detection-pack) | Wazuh lab on AWS with 32 custom detection rules, 28 of them built from the techniques of the TeamTNT threat group and mapped to MITRE ATT&CK. Each rule has a positive test, a negative test and a documented evasion. Three also exist as Sigma rules | Wazuh, auditd, MITRE ATT&CK, Sigma, detection rules, AWS, Linux | SOC L1 |
+| [Wazuh Detection Pack](https://github.com/TinchoLay/wazuh-detection-pack) | Wazuh lab on AWS with 32 custom detection rules, 28 of them built from the techniques of the TeamTNT threat group and mapped to MITRE ATT&CK. Each rule has a positive test, a negative test and a documented evasion. Three also exist as Sigma rules. A separate set of 15 rules covers the honeypot's traffic | Wazuh, auditd, MITRE ATT&CK, Sigma, detection rules, AWS, Linux | SOC L1 |
 
 ---
 
@@ -33,17 +33,19 @@ Everything here is personal home lab work, not production or client work. Each w
 
 ![SSH Honeypot dashboard, Stats tab, captured at 51 events from 21 unique IPs](assets/honeypot-01-dashboard-stats.png)
 
-A honeypot is a decoy server. It looks real, accepts connections, and has nothing of value inside. I built one that fakes three services, ran it on an Azure VM exposed to the internet, and logged what real attackers did to it.
+A honeypot is a decoy server. It looks real, accepts connections, and has nothing of value inside. I built one that fakes three services, ran it exposed to the internet (first on an Azure VM, now in Docker on AWS) and logged what real attackers did to it. A Wazuh agent ships its logs to a manager, where detection rules I wrote turn them into alerts.
 
 #### What it does
 
-- **Three fake services:** SSH (port 2222) with an interactive fake shell that imitates Ubuntu 22.04, an HTTP admin panel styled like a TP-Link router (8080), and an FTP server that rejects every credential (2121).
+- **Three fake services:** SSH (port 2222, and port 22 through a port forward) with an interactive fake shell that imitates Ubuntu 22.04, an HTTP admin panel styled like a TP-Link router (8080), and an FTP server that rejects every credential (2121).
+- **Harder to spot:** a host key that survives restarts, a full OpenSSH banner, logins that are accepted only for weak or default passwords or on the third try, and a shell that tracks the current directory.
 - **Logging:** every attempt is stored with credentials, geolocation and, on SSH, every command the attacker types.
 - **Attacker classification:** a Random Forest model (scikit-learn) sorts attackers into four groups (brute-force bot, scanner, script kiddie, targeted attacker) and retrains itself every 100 attempts.
 - **Tool fingerprinting:** it reads the SSH client banner to guess the tool behind the connection, such as Hydra or a home-made script.
 - **Malware triage:** when an attacker runs `wget` or `curl`, the honeypot downloads the file in the background, hashes it (MD5, SHA256) and checks the hash on VirusTotal.
 - **IP enrichment:** lookups against AbuseIPDB and Shodan, plus email alerts when attempts pass a threshold.
-- **Real-time dashboard:** Flask and WebSockets, with stats, time-of-day charts and a world map of attack origins.
+- **Real-time dashboard:** Flask and WebSockets, with stats, time-of-day charts and a world map of attack origins. The map has two filters that combine, one for the protocol (SSH, HTTP, FTP) and one for the period (last hour up to all time).
+- **Detection:** 15 Wazuh rules in my [detection pack](https://github.com/TinchoLay/wazuh-detection-pack/tree/main/honeypot) for fast and slow SSH brute force, download attempts, VirusTotal hits, GPON exploit paths, open proxy probes and scanner targets.
 
 #### What I saw once it was exposed
 
@@ -66,6 +68,8 @@ A honeypot is a decoy server. It looks real, accepts connections, and has nothin
 
 It is a small sample, but it is real internet traffic, not simulated. Most of it arrived on a single day (May 13, 2026). The screenshots below were taken a little earlier, at 51 events and 21 unique IPs, so their counts are slightly lower.
 
+On AWS the count grew to 247 events from 111 unique IPs (241 HTTP, 5 SSH) before I opened port 22. The HTTP side included GPON router exploit attempts, open proxy probes and a WebLogic handshake sent to a web port. I wrote Wazuh rules for each after reading what had arrived. One SSH source sent an attempt about every 30 seconds, slow enough to slip under my first brute force rule, so I added a second rule for slow attacks.
+
 ![Analysis tab: attacks by hour of day and by day of the week, top countries and timeline](assets/honeypot-02-dashboard-analysis.png)
 
 ![Map tab: attack origins plotted on a world map](assets/honeypot-03-attack-map.png)
@@ -80,12 +84,15 @@ It is a small sample, but it is real internet traffic, not simulated. Most of it
 - Raw TCP servers with Python's `socket` module, and session control with paramiko.
 - Training a scikit-learn model on data I captured myself, then wiring it into a live system.
 - Consuming REST APIs (ip-api, AbuseIPDB, Shodan, VirusTotal).
-- Cloud networking on Azure: VM setup and Network Security Group rules.
+- Cloud networking: VM setup and firewall rules on Azure and AWS.
+- Why Docker's port publishing hides the attacker's real IP, and how to forward port 22 with DNAT instead so per-IP detections keep working.
+- Wazuh loads rule files in alphabetical order. A child rule in a file that loads before its parent is ignored, and I only found out by reading the warnings from the test tool.
+- Cleaning my own test traffic out of three places (honeypot logs, Wazuh alert files, the indexer), and checking afterwards that it actually worked.
 - The unglamorous production side: running in the background, keeping logs from getting lost, restarting after a crash.
 
 #### Skills shown
 
-Log analysis, attacker profiling, threat intelligence enrichment, brute-force pattern recognition, malware hash triage, Python, Flask, Docker, Azure.
+Log analysis, attacker profiling, threat intelligence enrichment, brute-force pattern recognition, malware hash triage, Wazuh rule writing, Python, Flask, Docker, Azure, AWS.
 
 This is the closest thing to L1 triage in my portfolio: spot the activity, enrich the IP, classify it, write it down. The honeypot only captures traffic aimed at a server that I own.
 
@@ -239,6 +246,7 @@ Phase 2, TeamTNT (ATT&CK G0139):
 - Built an ATT&CK Navigator layer with a script that reads the `<mitre>` tags from the rules file, so the map cannot drift from the rules. It marks 17 techniques.
 - Rewrote three detections as vendor-neutral Sigma rules, after searching SigmaHQ to see what already existed. `sigma check` reports no errors and I converted them to Splunk and Elasticsearch queries. I did not run those queries on a live Splunk or Elastic.
 - Validated every change with `wazuh-analysisd -t` before restarting the manager, and used `wazuh-logtest` to see how Wazuh decodes an event whenever a rule misbehaved.
+- Added a honeypot integration: 15 rules, outside the 32 above, for the logs of my [SSH honeypot](https://github.com/TinchoLay/ssh-honeypot). They cover SSH brute force (fast and slow), download attempts, malware flagged by VirusTotal and HTTP and FTP scanning. They were tested in `wazuh-logtest` and with real internet traffic, and the write-up lists what is not verified.
 
 ![Rule 100100 in Threat Hunting: four hits for whoami, id, who and w](assets/wazuh-02-rule-100100.png)
 
@@ -355,11 +363,11 @@ Todo lo que hay acá es trabajo personal de laboratorio, no trabajo de producci�
 
 | Proyecto | Qué es | Habilidades principales | Rol más cercano |
 | --- | --- | --- | --- |
-| [SSH Honeypot](https://github.com/TinchoLay/ssh-honeypot) | Servidor señuelo SSH, HTTP y FTP en una VM de Azure que registró atacantes reales | Python, análisis de logs, threat intel, Flask, Docker, Azure | SOC L1 |
+| [SSH Honeypot](https://github.com/TinchoLay/ssh-honeypot) | Servidor señuelo SSH, HTTP y FTP que registró atacantes reales, primero en Azure y ahora en AWS, con reglas de Wazuh sobre sus logs | Python, análisis de logs, threat intel, Wazuh, Flask, Docker, AWS | SOC L1 |
 | [Helpdesk Labs](https://github.com/TinchoLay/Helpdesk-labs) | Dominio de Active Directory en Azure con 50 usuarios y 12 tickets N1/N2 documentados | Active Directory, GPO, PowerShell, Visor de eventos, NTFS/SMB | IT Support N1/N2 |
 | [Hash Identifier](https://github.com/TinchoLay/Hash-Identifier) | CLI que dice qué tipo de hash es un texto, con ranking de confianza | Python, diseño de CLI, pytest (38 tests) | SOC L1 |
 | [Hash Cracker](https://github.com/TinchoLay/Hash-Cracker) | CLI de ataque por diccionario que usa todos los núcleos y depende de Hash Identifier | multiprocessing, seguridad de contraseñas, pytest (41 tests) | SOC L1 / seguridad |
-| [Wazuh Detection Pack](https://github.com/TinchoLay/wazuh-detection-pack) | Laboratorio de Wazuh en AWS con 32 reglas de detección propias, 28 de ellas armadas a partir de las técnicas del grupo de amenaza TeamTNT y mapeadas a MITRE ATT&CK. Cada regla tiene una prueba positiva, una negativa y una evasión documentada. Tres existen también como reglas Sigma | Wazuh, auditd, MITRE ATT&CK, Sigma, reglas de detección, AWS, Linux | SOC L1 |
+| [Wazuh Detection Pack](https://github.com/TinchoLay/wazuh-detection-pack) | Laboratorio de Wazuh en AWS con 32 reglas de detección propias, 28 de ellas armadas a partir de las técnicas del grupo de amenaza TeamTNT y mapeadas a MITRE ATT&CK. Cada regla tiene una prueba positiva, una negativa y una evasión documentada. Tres existen también como reglas Sigma. Un conjunto aparte de 15 reglas cubre el tráfico del honeypot | Wazuh, auditd, MITRE ATT&CK, Sigma, reglas de detección, AWS, Linux | SOC L1 |
 
 ---
 
@@ -369,17 +377,19 @@ Todo lo que hay acá es trabajo personal de laboratorio, no trabajo de producci�
 
 ![Dashboard del SSH Honeypot, pestaña Stats, capturado con 51 eventos de 21 IPs únicas](assets/honeypot-01-dashboard-stats.png)
 
-Un honeypot es un servidor señuelo. Parece real, acepta conexiones y no tiene nada de valor adentro. Armé uno que simula tres servicios, lo dejé corriendo en una VM de Azure expuesta a internet y registré lo que hicieron atacantes reales.
+Un honeypot es un servidor señuelo. Parece real, acepta conexiones y no tiene nada de valor adentro. Armé uno que simula tres servicios, lo dejé expuesto a internet (primero en una VM de Azure, ahora en Docker sobre AWS) y registré lo que hicieron atacantes reales. Un agente de Wazuh manda sus logs a un manager, donde reglas de detección que escribí los convierten en alertas.
 
 #### Qué hace
 
-- **Tres servicios falsos:** SSH (puerto 2222) con una shell interactiva falsa que imita Ubuntu 22.04, un panel de administración HTTP con pinta de router TP-Link (8080) y un FTP que rechaza todas las credenciales (2121).
+- **Tres servicios falsos:** SSH (puerto 2222, y puerto 22 mediante un reenvío) con una shell interactiva falsa que imita Ubuntu 22.04, un panel de administración HTTP con pinta de router TP-Link (8080) y un FTP que rechaza todas las credenciales (2121).
+- **Más difícil de detectar:** una clave de host que sobrevive a los reinicios, un banner completo de OpenSSH, logins que se aceptan solo con contraseñas débiles o de fábrica o al tercer intento, y una shell que recuerda el directorio actual.
 - **Registro:** cada intento queda guardado con credenciales, geolocalización y, en SSH, cada comando que el atacante tipea.
 - **Clasificación de atacantes:** un modelo Random Forest (scikit-learn) los separa en cuatro grupos (bot de fuerza bruta, scanner, script kiddie, atacante dirigido) y se reentrena solo cada 100 intentos.
 - **Fingerprinting de herramientas:** lee el banner del cliente SSH para adivinar qué herramienta hay detrás de la conexión, como Hydra o un script casero.
 - **Triage de malware:** cuando el atacante corre `wget` o `curl`, el honeypot descarga el archivo en segundo plano, calcula su hash (MD5, SHA256) y lo consulta en VirusTotal.
 - **Enriquecimiento de IPs:** consultas a AbuseIPDB y Shodan, más alertas por email cuando los intentos pasan un umbral.
-- **Dashboard en tiempo real:** Flask y WebSockets, con estadísticas, gráficos por hora del día y un mapa mundial con el origen de los ataques.
+- **Dashboard en tiempo real:** Flask y WebSockets, con estadísticas, gráficos por hora del día y un mapa mundial con el origen de los ataques. El mapa tiene dos filtros que se combinan, uno por protocolo (SSH, HTTP, FTP) y otro por período (última hora hasta todo el historial).
+- **Detección:** 15 reglas de Wazuh en mi [pack de detección](https://github.com/TinchoLay/wazuh-detection-pack/tree/main/honeypot) para fuerza bruta SSH rápida y lenta, intentos de descarga, hallazgos de VirusTotal, rutas de exploit de GPON, pruebas de proxy abierto y objetivos de scanners.
 
 #### Qué vi una vez expuesto a internet
 
@@ -402,6 +412,8 @@ Un honeypot es un servidor señuelo. Parece real, acepta conexiones y no tiene n
 
 Es una muestra chica, pero es tráfico real de internet, no simulado. Casi todo llegó en un solo día (13 de mayo de 2026). Las capturas de abajo son un poco anteriores, con 51 eventos y 21 IPs únicas, por eso sus números son algo menores.
 
+En AWS el conteo creció a 247 eventos de 111 IPs únicas (241 HTTP, 5 SSH) antes de abrir el puerto 22. El lado HTTP incluyó intentos de exploit de routers GPON, pruebas de proxy abierto y un handshake de WebLogic enviado a un puerto web. Escribí reglas de Wazuh para cada uno después de leer lo que había llegado. Una fuente SSH mandaba un intento cada 30 segundos, tan lento que pasaba por debajo de mi primera regla de fuerza bruta, así que sumé una segunda regla para ataques lentos.
+
 ![Pestaña Análisis: ataques por hora del día y por día de la semana, países y línea de tiempo](assets/honeypot-02-dashboard-analysis.png)
 
 ![Pestaña Mapa: origen de los ataques en un mapa mundial](assets/honeypot-03-attack-map.png)
@@ -416,12 +428,15 @@ Es una muestra chica, pero es tráfico real de internet, no simulado. Casi todo 
 - Servidores TCP crudos con `socket` en Python y control de sesiones con paramiko.
 - Entrenar un modelo de scikit-learn con datos que capturé yo mismo e integrarlo a un sistema en vivo.
 - Consumir APIs REST (ip-api, AbuseIPDB, Shodan, VirusTotal).
-- Redes en la nube con Azure: armado de la VM y reglas del Network Security Group.
+- Redes en la nube: armado de la VM y reglas de firewall en Azure y AWS.
+- Por qué la publicación de puertos de Docker esconde la IP real del atacante, y cómo reenviar el puerto 22 con DNAT para que las detecciones por IP sigan funcionando.
+- Wazuh carga los archivos de reglas en orden alfabético. Una regla hija en un archivo que carga antes que su padre se ignora, y me enteré leyendo las advertencias de la herramienta de pruebas.
+- Limpiar mi propio tráfico de prueba en tres lugares (logs del honeypot, archivos de alertas de Wazuh, el indexador) y comprobar después que de verdad funcionó.
 - La parte poco glamorosa de producción: correr en segundo plano, que no se pierdan los logs y reiniciar después de una caída.
 
 #### Habilidades demostradas
 
-Análisis de logs, perfilado de atacantes, enriquecimiento con threat intelligence, reconocimiento de patrones de fuerza bruta, triage de malware por hash, Python, Flask, Docker, Azure.
+Análisis de logs, perfilado de atacantes, enriquecimiento con threat intelligence, reconocimiento de patrones de fuerza bruta, triage de malware por hash, escritura de reglas de Wazuh, Python, Flask, Docker, Azure, AWS.
 
 Es lo más parecido al triage de un L1 que tengo en el portafolio: detectar la actividad, enriquecer la IP, clasificarla y dejarla documentada. El honeypot solo captura tráfico dirigido a un servidor que es mío.
 
@@ -575,6 +590,7 @@ Fase 2, TeamTNT (ATT&CK G0139):
 - Armé una capa de ATT&CK Navigator con un script que lee las etiquetas `<mitre>` del archivo de reglas, así el mapa no se desfasa de las reglas. Marca 17 técnicas.
 - Reescribí tres detecciones como reglas Sigma, independientes del proveedor, después de buscar en SigmaHQ qué existía ya. `sigma check` no reporta errores y las convertí a consultas de Splunk y Elasticsearch. No ejecuté esas consultas en un Splunk o Elastic real.
 - Validé cada cambio con `wazuh-analysisd -t` antes de reiniciar el manager, y usé `wazuh-logtest` para ver cómo decodifica Wazuh un evento cada vez que una regla se comportaba mal.
+- Sumé una integración con un honeypot: 15 reglas, aparte de las 32 de arriba, para los logs de mi [SSH honeypot](https://github.com/TinchoLay/ssh-honeypot). Cubren fuerza bruta SSH (rápida y lenta), intentos de descarga, malware marcado por VirusTotal y escaneo HTTP y FTP. Las probé en `wazuh-logtest` y con tráfico real de internet, y la documentación lista lo que no está verificado.
 
 ![Regla 100100 en Threat Hunting: cuatro hits para whoami, id, who y w](assets/wazuh-02-rule-100100.png)
 
