@@ -45,7 +45,7 @@ A honeypot is a decoy server. It looks real, accepts connections, and has nothin
 - **Malware triage:** when an attacker runs `wget` or `curl`, the honeypot downloads the file in the background, hashes it (MD5, SHA256) and checks the hash on VirusTotal.
 - **IP enrichment:** lookups against AbuseIPDB and Shodan, plus email alerts when attempts pass a threshold.
 - **Real-time dashboard:** Flask and WebSockets, with stats, time-of-day charts and a world map of attack origins. The map has two filters that combine, one for the protocol (SSH, HTTP, FTP) and one for the period (last hour up to all time).
-- **Detection:** 15 Wazuh rules in my [detection pack](https://github.com/TinchoLay/wazuh-detection-pack/tree/main/honeypot) for fast and slow SSH brute force, download attempts, VirusTotal hits, GPON exploit paths, open proxy probes and scanner targets.
+- **Detection:** 28 Wazuh rules in my [detection pack](https://github.com/TinchoLay/wazuh-detection-pack/tree/main/honeypot) for fast and slow SSH brute force, how each SSH connection ends, commands typed by the attacker (SSH keys left behind, miners, download and run, new accounts), download attempts, VirusTotal hits, GPON exploit paths, open proxy probes and scanner targets.
 
 #### What I saw once it was exposed
 
@@ -68,7 +68,7 @@ A honeypot is a decoy server. It looks real, accepts connections, and has nothin
 
 It is a small sample, but it is real internet traffic, not simulated. Most of it arrived on a single day (May 13, 2026). The screenshots below were taken a little earlier, at 51 events and 21 unique IPs, so their counts are slightly lower.
 
-On AWS the count grew to 247 events from 111 unique IPs (241 HTTP, 5 SSH) before I opened port 22. The HTTP side included GPON router exploit attempts, open proxy probes and a WebLogic handshake sent to a web port. I wrote Wazuh rules for each after reading what had arrived. One SSH source sent an attempt about every 30 seconds, slow enough to slip under my first brute force rule, so I added a second rule for slow attacks.
+On AWS the count was 247 events from 111 unique IPs before I opened port 22, and 2,899 events from 631 IPs a week later (2,058 SSH login attempts, 838 HTTP). One /24 block made 83% of those SSH attempts, so I read totals by day or country with care. The HTTP side included GPON router exploit attempts, open proxy probes and a WebLogic handshake sent to a web port. I wrote Wazuh rules for each after reading what had arrived. One SSH source sent an attempt about every 30 seconds, slow enough to slip under my first brute force rule, so I added a second rule for slow attacks.
 
 ![Analysis tab: attacks by hour of day and by day of the week, top countries and timeline](assets/honeypot-02-dashboard-analysis.png)
 
@@ -246,7 +246,7 @@ Phase 2, TeamTNT (ATT&CK G0139):
 - Built an ATT&CK Navigator layer with a script that reads the `<mitre>` tags from the rules file, so the map cannot drift from the rules. It marks 17 techniques.
 - Rewrote three detections as vendor-neutral Sigma rules, after searching SigmaHQ to see what already existed. `sigma check` reports no errors and I converted them to Splunk and Elasticsearch queries. I did not run those queries on a live Splunk or Elastic.
 - Validated every change with `wazuh-analysisd -t` before restarting the manager, and used `wazuh-logtest` to see how Wazuh decodes an event whenever a rule misbehaved.
-- Added a honeypot integration: 15 rules, outside the 32 above, for the logs of my [SSH honeypot](https://github.com/TinchoLay/ssh-honeypot). They cover SSH brute force (fast and slow), download attempts, malware flagged by VirusTotal and HTTP and FTP scanning. They were tested in `wazuh-logtest` and with real internet traffic, and the write-up lists what is not verified.
+- Added a honeypot integration: 28 rules, outside the 32 above, for the logs of my [SSH honeypot](https://github.com/TinchoLay/ssh-honeypot). They cover SSH brute force (fast and slow), how each SSH connection ends, commands typed by the attacker, download attempts, malware flagged by VirusTotal and HTTP and FTP scanning. The first 15 were tested in `wazuh-logtest` and with real internet traffic. The newer 13 passed the engine's syntax check, four of them also passed a `wazuh-logtest`, and one has fired on a real scanner. The write-up lists what is not verified.
 
 ![Rule 100100 in Threat Hunting: four hits for whoami, id, who and w](assets/wazuh-02-rule-100100.png)
 
@@ -389,7 +389,7 @@ Un honeypot es un servidor señuelo. Parece real, acepta conexiones y no tiene n
 - **Triage de malware:** cuando el atacante corre `wget` o `curl`, el honeypot descarga el archivo en segundo plano, calcula su hash (MD5, SHA256) y lo consulta en VirusTotal.
 - **Enriquecimiento de IPs:** consultas a AbuseIPDB y Shodan, más alertas por email cuando los intentos pasan un umbral.
 - **Dashboard en tiempo real:** Flask y WebSockets, con estadísticas, gráficos por hora del día y un mapa mundial con el origen de los ataques. El mapa tiene dos filtros que se combinan, uno por protocolo (SSH, HTTP, FTP) y otro por período (última hora hasta todo el historial).
-- **Detección:** 15 reglas de Wazuh en mi [pack de detección](https://github.com/TinchoLay/wazuh-detection-pack/tree/main/honeypot) para fuerza bruta SSH rápida y lenta, intentos de descarga, hallazgos de VirusTotal, rutas de exploit de GPON, pruebas de proxy abierto y objetivos de scanners.
+- **Detección:** 28 reglas de Wazuh en mi [pack de detección](https://github.com/TinchoLay/wazuh-detection-pack/tree/main/honeypot) para fuerza bruta SSH rápida y lenta, cómo termina cada conexión SSH, comandos que escribe el atacante (claves SSH dejadas, mineros, descargar y ejecutar, cuentas nuevas), intentos de descarga, hallazgos de VirusTotal, rutas de exploit de GPON, pruebas de proxy abierto y objetivos de scanners.
 
 #### Qué vi una vez expuesto a internet
 
@@ -412,7 +412,7 @@ Un honeypot es un servidor señuelo. Parece real, acepta conexiones y no tiene n
 
 Es una muestra chica, pero es tráfico real de internet, no simulado. Casi todo llegó en un solo día (13 de mayo de 2026). Las capturas de abajo son un poco anteriores, con 51 eventos y 21 IPs únicas, por eso sus números son algo menores.
 
-En AWS el conteo creció a 247 eventos de 111 IPs únicas (241 HTTP, 5 SSH) antes de abrir el puerto 22. El lado HTTP incluyó intentos de exploit de routers GPON, pruebas de proxy abierto y un handshake de WebLogic enviado a un puerto web. Escribí reglas de Wazuh para cada uno después de leer lo que había llegado. Una fuente SSH mandaba un intento cada 30 segundos, tan lento que pasaba por debajo de mi primera regla de fuerza bruta, así que sumé una segunda regla para ataques lentos.
+En AWS el conteo era de 247 eventos de 111 IPs únicas antes de abrir el puerto 22, y de 2.899 eventos de 631 IPs una semana después (2.058 intentos de login SSH, 838 HTTP). Un solo bloque /24 hizo el 83% de esos intentos SSH, así que leo con cuidado los totales por día o por país. El lado HTTP incluyó intentos de exploit de routers GPON, pruebas de proxy abierto y un handshake de WebLogic enviado a un puerto web. Escribí reglas de Wazuh para cada uno después de leer lo que había llegado. Una fuente SSH mandaba un intento cada 30 segundos, tan lento que pasaba por debajo de mi primera regla de fuerza bruta, así que sumé una segunda regla para ataques lentos.
 
 ![Pestaña Análisis: ataques por hora del día y por día de la semana, países y línea de tiempo](assets/honeypot-02-dashboard-analysis.png)
 
@@ -590,7 +590,7 @@ Fase 2, TeamTNT (ATT&CK G0139):
 - Armé una capa de ATT&CK Navigator con un script que lee las etiquetas `<mitre>` del archivo de reglas, así el mapa no se desfasa de las reglas. Marca 17 técnicas.
 - Reescribí tres detecciones como reglas Sigma, independientes del proveedor, después de buscar en SigmaHQ qué existía ya. `sigma check` no reporta errores y las convertí a consultas de Splunk y Elasticsearch. No ejecuté esas consultas en un Splunk o Elastic real.
 - Validé cada cambio con `wazuh-analysisd -t` antes de reiniciar el manager, y usé `wazuh-logtest` para ver cómo decodifica Wazuh un evento cada vez que una regla se comportaba mal.
-- Sumé una integración con un honeypot: 15 reglas, aparte de las 32 de arriba, para los logs de mi [SSH honeypot](https://github.com/TinchoLay/ssh-honeypot). Cubren fuerza bruta SSH (rápida y lenta), intentos de descarga, malware marcado por VirusTotal y escaneo HTTP y FTP. Las probé en `wazuh-logtest` y con tráfico real de internet, y la documentación lista lo que no está verificado.
+- Sumé una integración con un honeypot: 28 reglas, aparte de las 32 de arriba, para los logs de mi [SSH honeypot](https://github.com/TinchoLay/ssh-honeypot). Cubren fuerza bruta SSH (rápida y lenta), cómo termina cada conexión SSH, comandos que escribe el atacante, intentos de descarga, malware marcado por VirusTotal y escaneo HTTP y FTP. Las primeras 15 las probé en `wazuh-logtest` y con tráfico real de internet. Las 13 nuevas pasaron la validación de sintaxis del motor, cuatro de ellas también un `wazuh-logtest`, y una ya saltó con un scanner real. La documentación lista lo que no está verificado.
 
 ![Regla 100100 en Threat Hunting: cuatro hits para whoami, id, who y w](assets/wazuh-02-rule-100100.png)
 
